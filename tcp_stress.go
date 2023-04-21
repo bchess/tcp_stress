@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -12,6 +13,12 @@ import (
 )
 
 func main() {
+	// Usage: 
+	// listen | [host1 host2 ...]
+	if len(os.Args) == 1 {
+		fmt.Printf("Usage: %s listen | [host1 host2 ...]\n", os.Args[0])
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "listen" {
 		log.Print("Listen mode")
 		doServer()
@@ -35,7 +42,8 @@ func main() {
 	var done uint32 = 0
 
 	for i := uint64(0); i < lim.Cur-10; i++ {
-		go connection(&wg, &perSecond, &done)
+		hostIdx := i % (uint64(len(os.Args)) - 1)
+		go connection(os.Args[hostIdx + 1], &wg, &perSecond, &done)
 	}
 	<-cancelChan
 	atomic.AddUint32(&done, 1)
@@ -51,11 +59,13 @@ func measure(count *uint32) {
 	}
 }
 
-func connection(wg *sync.WaitGroup, count *uint32, done *uint32) {
+func connection(host string, wg *sync.WaitGroup, count *uint32, done *uint32) {
+	fullHost := fmt.Sprintf("%s:1223", host)
+
 	for atomic.LoadUint32(done) == 0 {
 		wg.Add(1)
 
-		tcp, err := net.Dial("tcp", "127.0.0.1:1223")
+		tcp, err := net.Dial("tcp", fullHost)
 		if err != nil {
 			log.Print(err)
 			wg.Done()
